@@ -2,7 +2,7 @@ Transform: AWS::Serverless-2016-10-31
 Parameters:
   EventBusName:
     Type: String
-    Default: MyCoolEventBus
+    Default: StripeEventBus
     Description: (Required) Name of EventBus.
   StripeWebhookSecret:
     Type: String
@@ -13,16 +13,12 @@ Parameters:
     Default: sk_12345
     Description: (Required) Your Stripe secret key
 Resources:
-  EventBus:
-    Type: AWS::Events::EventBus
-    Properties:
-      Name: MyCoolEventBus
   EventReciever:
     Type: AWS::Serverless::Function
     Properties:
       Runtime: nodejs12.x
-      Handler: eventbridge.sendToEventBridge
-      CodeUri: s3://stripe-event-bus/139130c95439b1932be4939a7a0450a5
+      Handler: send-to-event-bus.handler
+      CodeUri: s3://stripe-event-bus/6a9736d71e71dc6010da4c9c33824f2c
       Environment:
         Variables:
           EVENT_BUS_NAME:
@@ -44,17 +40,24 @@ Resources:
           Properties:
             Path: /webhook
             Method: POST
+  EventBus:
+    Type: AWS::Events::EventBus
+    Properties:
+      Name: StripeEventBus
   EventProcessor:
     Type: AWS::Serverless::Function
     Properties:
       Runtime: nodejs12.x
-      Handler: event-processor.listener
-      CodeUri: s3://stripe-event-bus/139130c95439b1932be4939a7a0450a5
+      Handler: event-processor.handler
+      CodeUri: s3://stripe-event-bus/6a9736d71e71dc6010da4c9c33824f2c
   EventListener:
     Type: AWS::Events::Rule
     Properties:
       Description: Handles Stripe events
-      EventBusName: MyCoolEventBus
+      EventBusName:
+        Fn::GetAtt:
+        - EventBus
+        - Name
       EventPattern:
         source:
         - Stripe
@@ -66,3 +69,16 @@ Resources:
           Fn::GetAtt:
           - EventProcessor
           - Arn
+  EventProcessorPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName:
+        Fn::GetAtt:
+        - EventProcessor
+        - Arn
+      Principal: events.amazonaws.com
+      SourceArn:
+        Fn::GetAtt:
+        - EventListener
+        - Arn
