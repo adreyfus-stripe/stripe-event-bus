@@ -1,5 +1,8 @@
 # stripe-eventbridge
 
+sam package --template-file template.yaml --s3-bucket stripe-event-bus --output-template-file output.yaml
+
+aws cloudformation deploy --template-file /Users/adreyfus/workspace/stripe-eventbridge/output.yaml --stack-name stripe-eventbridge --capabilities CAPABILITY_IAM
 ##  Intro
 
 _A serverless Stripe to Eventbridge pipe for webhook events_

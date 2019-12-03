@@ -1,0 +1,73 @@
+Transform: AWS::Serverless-2016-10-31
+Parameters:
+  EventBusName:
+    Type: String
+    Default: !GetAtt EventBus.Arn
+    Description: (Required) Name of EventBus.
+  StripeWebhookSecret:
+    Type: String
+    Default: wshec_1234
+    Description: (Required) Your Stripe webhooks secret
+  StripeSecretKey:
+    Type: String
+    Default: sk_12345
+    Description: (Required) Your Stripe secret key
+Resources:
+  # A Lambda function to receive events from Stripe  
+  EventReciever:
+    Type: AWS::Serverless::Function
+    Properties:
+      Runtime: nodejs12.x
+      Handler: send-to-event-bus.handler
+      CodeUri: ./lib
+      Environment:
+        Variables:
+          EVENT_BUS_NAME: !Ref EventBusName
+          STRIPE_WEBHOOK_SECRET: !Ref StripeWebhookSecret
+          STRIPE_SECRET_KEY: !Ref StripeSecretKey
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - events:PutEvents
+              Resource: '*'
+      Events:
+        WebhookEndpoint:
+            # Define an API Gateway endpoint that responds to HTTP GET at /thumbnail
+            Type: Api
+            Properties:
+                Path: /webhook
+                Method: POST
+  # An Event Bus for EventReciever to send events to 
+  EventBus:
+    Type: AWS::Events::EventBus
+    Properties: 
+      Name: StripeEventBus
+  # A Lambda function to process specific events from Stripe
+  EventProcessor:
+    Type: AWS::Serverless::Function
+    Properties:
+      Runtime: nodejs12.x
+      Handler: event-processor.handler
+      CodeUri: ./lib
+  # An Event Rule to listen for payment_intent.succeeded Stripe event and route it to EventProcessor function
+  EventListener:
+    Type: AWS::Events::Rule
+    Properties: 
+      Description: Handles Stripe events
+      EventBusName: !GetAtt EventBus.Arn
+      EventPattern: { "source": [ "Stripe" ], "detail-type": [ "payment_intent.succeeded" ] }
+      Targets: 
+        - 
+          Id: something
+          Arn: !GetAtt EventProcessor.Arn
+  # Permission to allow EventListener to send events to EventProcessor
+  EventProcessorPermission:
+    Type: AWS::Lambda::Permission
+    Properties: 
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt EventProcessor.Arn
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt EventListener.Arn
+        

@@ -1,0 +1,61 @@
+Transform: AWS::Serverless-2016-10-31
+Parameters:
+  EventBusName:
+    Type: String
+    Default: stripe-event-log
+    Description: (Required) Name of EventBus.
+  StripeWebhookSecret:
+    Type: String
+    Default: wshec_1234
+    Description: (Required) Your Stripe webhooks secret
+  StripeSecretKey:
+    Type: String
+    Default: sk_12345
+    Description: (Required) Your Stripe secret key
+Resources:
+  EventBus:
+    Type: AWS::Events::EventBus
+    Properties:
+      Name: MyCoolEventBus
+  EventReciever:
+    Type: AWS::Serverless::Function
+    Properties:
+      Runtime: nodejs10.x
+      Handler: eventbridge.sendToEventBridge
+      CodeUri: s3://stripe-event-bus/a5659484a9065227680be0c6462e65d0
+      Environment:
+        Variables:
+          EVENT_BUS_NAME:
+            Ref: EventBusName
+          STRIPE_WEBHOOK_SECRET:
+            Ref: StripeWebhookSecret
+          STRIPE_SECRET_KEY:
+            Ref: StripeSecretKey
+      Events:
+        WebhookEndpoint:
+          Type: Api
+          Properties:
+            Path: /webhook
+            Method: POST
+  EventProcessor:
+    Type: AWS::Serverless::Function
+    Properties:
+      Runtime: nodejs10.x
+      Handler: eventbridge.sendToEventBridge
+      CodeUri: s3://stripe-event-bus/a5659484a9065227680be0c6462e65d0
+  EventListener:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: Handles Stripe events
+      EventBusName: MyCoolEventBus
+      EventPattern:
+        source:
+        - Stripe
+        detail-type:
+        - payment_intent.succeeded
+      Targets:
+      - Id: something
+        Arn:
+          Fn::GetAtt:
+          - EventProcessor
+          - Arn
